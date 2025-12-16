@@ -15,13 +15,10 @@ points = [
 
 intervalo_ciclo = 60
 delay_entre_clicks = 0.5
-intervalo_captura = 60  # 5 minutos
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 output_dir = os.path.join(BASE_DIR, "captures")
 os.makedirs(output_dir, exist_ok=True)
-
-ultimo_screenshot = 0
 
 print("Automatización iniciada...")
 
@@ -34,17 +31,16 @@ while True:
         pyautogui.click()
         time.sleep(delay_entre_clicks)
 
-    # --- Captura ---
-    if time.time() - ultimo_screenshot >= intervalo_captura:
-        filename = datetime.now().strftime("capture_%Y%m%d_%H%M%S.png")
-        path = os.path.join(output_dir, filename)
+    # --- Captura (UNA POR CICLO) ---
+    filename = datetime.now().strftime("capture_%Y%m%d_%H%M%S.png")
+    path = os.path.join(output_dir, filename)
 
-        img = ImageGrab.grab()
-        img.save(path)
+    img = ImageGrab.grab()
+    img.save(path)
 
-        print(f"📸 Captura guardada en: {path}")
-        ultimo_screenshot = time.time()
+    print(f"📸 Captura guardada en: {path}")
 
+    # --- Esperar hasta completar el minuto ---
     restante = intervalo_ciclo - (time.time() - inicio)
     if restante > 0:
         time.sleep(restante)
