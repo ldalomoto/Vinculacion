@@ -1,10 +1,15 @@
 import pyautogui
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import pyscreenshot as ImageGrab
 
 pyautogui.FAILSAFE = True
+
+# ================= CONFIGURACIÓN =================
+HORARIO_INICIO = "19:52"   # ← CAMBIA AQUÍ
+HORARIO_FIN    = "21:52"   # ← CAMBIA AQUÍ
+# =================================================
 
 points = [
     (261, 476),
@@ -13,34 +18,48 @@ points = [
     (1190, 515)
 ]
 
-intervalo_ciclo = 60
-delay_entre_clicks = 0.5
+DELAY_ENTRE_CLICKS = 0.5
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-output_dir = os.path.join(BASE_DIR, "captures")
-os.makedirs(output_dir, exist_ok=True)
+OUTPUT_DIR = os.path.join(BASE_DIR, "captures")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-print("Automatización iniciada...")
+inicio_dt = datetime.strptime(HORARIO_INICIO, "%H:%M").time()
+fin_dt = datetime.strptime(HORARIO_FIN, "%H:%M").time()
+
+ultima_captura = None
+
+print("🟢 Automatización iniciada...")
 
 while True:
-    inicio = time.time()
+    ciclo_inicio = time.time()
+    ahora = datetime.now()
+    hora_actual = ahora.time()
 
-    # --- Clicks ---
+    # --- Clicks SIEMPRE ---
     for x, y in points:
         pyautogui.moveTo(x, y, duration=0.2)
         pyautogui.click()
-        time.sleep(delay_entre_clicks)
+        time.sleep(DELAY_ENTRE_CLICKS)
 
-    # --- Captura (UNA POR CICLO) ---
-    filename = datetime.now().strftime("capture_%Y%m%d_%H%M%S.png")
-    path = os.path.join(output_dir, filename)
+    # --- Captura cada 1 hora desde inicio ---
+    if inicio_dt <= hora_actual <= fin_dt:
+        if ultima_captura is None:
+            capturar = True
+        else:
+            capturar = (ahora - ultima_captura) >= timedelta(hours=1)
 
-    img = ImageGrab.grab()
-    img.save(path)
+        if capturar:
+            filename = ahora.strftime("capture_%Y%m%d_%H%M%S.png")
+            path = os.path.join(OUTPUT_DIR, filename)
 
-    print(f"📸 Captura guardada en: {path}")
+            img = ImageGrab.grab()
+            img.save(path)
 
-    # --- Esperar hasta completar el minuto ---
-    restante = intervalo_ciclo - (time.time() - inicio)
+            ultima_captura = ahora
+            print(f"📸 Captura horaria: {filename}")
+
+    # --- Mantener ciclo de 1 minuto ---
+    restante = 60 - (time.time() - ciclo_inicio)
     if restante > 0:
         time.sleep(restante)
