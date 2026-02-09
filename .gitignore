@@ -20,3 +20,12 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 .cache/
+descargas
+/descargas
+/metricas
+metricas
+captures
+/captures
+datos.json
+*.xlsx
+youtube.py
