@@ -3,74 +3,80 @@ const qrcode = require('qrcode-terminal');
 const chokidar = require('chokidar');
 const path = require('path');
 
-const DESTINO = '120363404278630046@g.us';
+const DESTINO = '120363300007588061@g.us'; // Grupo principal
+// const DESTINO = '120363404278630046@g.us'; // Grupo de pruebas
 const CAPTURES_DIR = path.join(__dirname, 'captures');
+const METRICAS_DIR = path.join(__dirname, 'metricas');
 
+let metricasEnviadas = false;
+
+// ================= HORAS =================
 function horaEnRango(horaActual, inicio, fin) {
     const toMin = h => {
         const [hh, mm] = h.split(':').map(Number);
         return hh * 60 + mm;
     };
 
-    const actual = toMin(horaActual);
-    const ini = toMin(inicio);
-    const fi = toMin(fin);
+    const a = toMin(horaActual);
+    const i = toMin(inicio);
+    const f = toMin(fin);
 
-    // rango normal (ej: 09:00 - 17:00)
-    if (ini <= fi) {
-        return actual >= ini && actual <= fi;
-    }
+    // rango normal
+    if (i <= f) return a >= i && a <= f;
 
-    // rango cruza medianoche (ej: 22:00 - 02:00)
-    return actual >= ini || actual <= fi;
+    // cruza medianoche
+    return a >= i || a <= f;
 }
 
+// ================= CONFIG =================
 const MONITOREO = {
     responsable: 'Lenin Alomoto',
     lugar: 'G1',
-    fecha: 'lunes 15/12/2025',
+    fecha: 'miercoles 14/01/2026',
 
-    // 👇 BLOQUES HORARIOS
     horarios: [
-        { inicio: '21:46', fin: '22:46' }, // mañana
-        { inicio: '23:00', fin: '00:00' }  // tarde / noche
+        { inicio: '06:00', fin: '09:00' }
+        // puedes agregar más bloques aquí
     ],
 
     camaras_sin_conexion: [
-        'Camera 01_DS-7104HGHI-K1',
-        'Ambato y Bolívar_DS-7104HGHI-K1',
-        'Camera 01_DS-7104HGHI-K1'
+        'Camera 01_DS-7104HGHI-K1(J61593917)',
+        'Ambato y Bolívar_DS-7104HGHI-K1(J61594633)',
+        'Camera 01_DS-7104HGHI-K1(J61594700)'
     ]
 };
 
+// ================= BLOQUE ACTUAL =================
 function obtenerBloqueActual(horaActual) {
     return MONITOREO.horarios.find(
         h => horaEnRango(horaActual, h.inicio, h.fin)
     );
 }
 
-const estadoPorBloque = {};
-
+// ================= ESTADO =================
 function getEstado(horaActual, bloque) {
-    const key = `${bloque.inicio}-${bloque.fin}`;
-
-    if (!estadoPorBloque[key]) {
-        estadoPorBloque[key] = 'iniciado';
-        return 'inicia';
-    }
-
+    if (horaActual === bloque.inicio) return 'inicia';
+    if (horaActual === bloque.fin) return 'finaliza';
     return 'continua';
 }
 
+// ================= MENSAJE =================
 function buildMessage(estado, bloque) {
     return `${MONITOREO.responsable} ${estado} monitoreo ${MONITOREO.lugar}
-Hora: ${bloque.inicio} - ${bloque.fin}
+Hora: ${bloque.inicio} am - ${bloque.fin} am
 Fecha: ${MONITOREO.fecha}
 Novedades:
 Cámaras sin conexión:
 ${MONITOREO.camaras_sin_conexion.join('\n')}`;
 }
 
+function buildMessageMetricas() {
+    return `Métricas G1
+Hora: 06:00 am - 09:00 am
+Fecha: miercoles 14 de enero`;
+}
+
+// ================= WHATSAPP =================
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -95,19 +101,38 @@ client.on('ready', () => {
 
     watcher.on('add', async filePath => {
         try {
-            const hora = new Date().toTimeString().slice(0, 5);
+            const horaActual = new Date().toTimeString().slice(0, 5);
 
-            // 🔍 Ver si estamos dentro de algún bloque
-            const bloque = obtenerBloqueActual(hora);
+            const bloque = obtenerBloqueActual(horaActual);
             if (!bloque) return; // ⛔ fuera de horario
 
-            const estado = getEstado(hora, bloque);
+            const estado = getEstado(horaActual, bloque);
             const mensaje = buildMessage(estado, bloque);
 
             const media = MessageMedia.fromFilePath(filePath);
             await client.sendMessage(DESTINO, media, { caption: mensaje });
 
-            console.log(`📤 Enviado (${estado}) → ${hora}`);
+            console.log(`📤 Enviado (${estado}) → ${horaActual}`);
+
+            if (estado === 'finaliza' && !metricasEnviadas) {
+                metricasEnviadas = true;
+
+                console.log('⏳ Esperando 20 segundos para enviar métricas...');
+                await new Promise(resolve => setTimeout(resolve, 20_000));
+
+                console.log('📊 Enviando Métricas de Monitoreo...');
+
+                const mensajeMetricas = buildMessageMetricas();
+                const mediaMetricas = MessageMedia.fromFilePath(
+                    path.join(METRICAS_DIR, 'metricas-14-01-2026-2.png')
+                );
+            
+                await client.sendMessage(DESTINO, mediaMetricas, {
+                    caption: mensajeMetricas
+                });
+            
+                console.log('✅ Métricas enviadas (una sola vez).');
+            }
 
         } catch (err) {
             console.error('❌ Error enviando:', err.message);
